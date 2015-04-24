@@ -760,10 +760,34 @@ is_valid_type_ex(e::Expr) = ((e.head == :curly || e.head == :tuple || e.head == 
 const _typedict = Dict{UTF8String,Type}()
 _typedict["Core.Type{TypeVar(:T,Union(Core.Any,Core.Undef))}"] = Type
 
+fixtypes(typ) = typ
+@eval begin
+    function fixtypes(typ::Expr)
+        $(if VERSION >= v"0.4.0-dev+4319"
+            quote
+                if typ.head == :tuple
+                    return Expr(:curly, :Tuple, typ.args...)
+                end
+            end
+        else
+            quote
+                if typ.head == :curly && !isempty(typ.args) && typ.args[1] == :Tuple
+                    return Expr(:tuple, typ.args[2:end]...)
+                end
+            end
+        end)
+
+        for i = 1:length(typ.args)
+            typ.args[i] = fixtypes(typ.args[i])
+        end
+        typ
+    end
+end
+
 function _julia_type(s::AbstractString)
     typ = get(_typedict, s, UnconvertedType)
     if typ == UnconvertedType
-        typ = julia_type(parse(s))
+        typ = julia_type(fixtypes(parse(s)))
         if typ != UnsupportedType
             _typedict[s] = typ
         end
