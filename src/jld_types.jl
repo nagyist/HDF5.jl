@@ -15,11 +15,13 @@ if VERSION >= v"0.4.0-dev+4319"
     typealias TypesType SimpleVector
     typealias TupleType{T<:Tuple} Type{T}
     tupletypes(T::TupleType) = T.parameters
+    typetuple(types) = Tuple{types...}
 else
     const EMPTY_TUPLE_TYPE = ()
     typealias TypesType (Type...)
     typealias TupleType (Type...)
     tupletypes(T::TupleType) = T
+    typetuple(types) = tuple(types...)
 end
 
 ## Helper functions
@@ -295,7 +297,6 @@ h5fieldtype(parent::JldFile, ::Type{Union()}, ::Bool) = JLD_REF_TYPE
 if VERSION >= v"0.4.0-dev+4319"
     h5fieldtype(parent::JldFile, ::Type{SimpleVector}, commit::Bool) = JLD_REF_TYPE
 
-    # Stored as compound types that contain a vlen
     function h5type(parent::JldFile, ::Type{SimpleVector}, commit::Bool)
         haskey(parent.jlh5type, SimpleVector) && return parent.jlh5type[SimpleVector]
         id = HDF5.h5t_create(HDF5.H5T_COMPOUND, HDF5.h5t_get_size(JLD_REF_TYPE))
@@ -680,6 +681,9 @@ function jldatatype(parent::JldFile, dtype::HDF5Datatype)
         if T == UnsupportedType
             warn("type $typename not present in workspace; reconstructing")
             T = reconstruct_type(parent, dtype, typename)
+        elseif T == Type
+            # https://github.com/JuliaLang/julia/issues/10998
+            T = Type
         end
 
         if !(T in BUILTIN_TYPES)
@@ -753,9 +757,9 @@ function reconstruct_type(parent::JldFile, dtype::HDF5Datatype, savedname::Abstr
             end
         end
 
-        if startswith(savedname, "(")
+        if startswith(savedname, "(") || startswith(savedname, "Core.Tuple{")
             # We're reconstructing a tuple
-            tuple(fieldtypes...)
+            typetuple(fieldtypes)
         else
             # We're reconstructing some other type
             @eval begin
