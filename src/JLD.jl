@@ -634,10 +634,9 @@ write_ref(parent::JldGroup, data, wsession::JldWriteSession) =
     write_ref(file(parent), data, wsession)
 
 # Special case for associative, to rehash keys
-function _write(parent::Union(JldFile, JldGroup), name::ByteString,
-                d::Associative, wsession::JldWriteSession; kargs...)
+function _write{K,V}(parent::Union(JldFile, JldGroup), name::ByteString,
+                     d::Associative{K,V}, wsession::JldWriteSession; kargs...)
     n = length(d)
-    K, V = eltype(d)
     ks = Array(K, n)
     vs = Array(V, n)
     i = 0
@@ -859,6 +858,8 @@ function full_typename(io::IO, file::JldFile, jltype::DataType)
             full_typename(io, file, jltype.parameters[i])
         end
         print(io, '}')
+    elseif jltype <: Tuple
+        print(io, "{}")
     end
 end
 function full_typename(file::JldFile, x)
