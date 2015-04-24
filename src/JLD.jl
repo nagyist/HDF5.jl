@@ -488,7 +488,7 @@ write(parent::Union(JldFile, JldGroup), name::ByteString,
     close(_write(parent, name, data, wsession; kargs...))
 
 # Pick whether to use compact or default storage based on data size
-function dset_create_properties(parent, sz::Int, obj, chunk=Int[]; mmap = false)
+function dset_create_properties(parent, sz::Int, obj, chunk=Int[]; mmap::Bool=false)
     if sz <= 8192 && !ismmapped(parent) && !mmap
         return compact_properties(), false
     end

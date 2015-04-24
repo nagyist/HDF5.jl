@@ -293,8 +293,7 @@ h5fieldtype(parent::JldFile, ::Type{Union()}, ::Bool) = JLD_REF_TYPE
 ## SimpleVectors
 
 if VERSION >= v"0.4.0-dev+4319"
-    h5fieldtype(parent::JldFile, ::Type{SimpleVector}, commit::Bool) =
-        h5type(parent, SimpleVector, commit)
+    h5fieldtype(parent::JldFile, ::Type{SimpleVector}, commit::Bool) = JLD_REF_TYPE
 
     # Stored as compound types that contain a vlen
     function h5type(parent::JldFile, ::Type{SimpleVector}, commit::Bool)
@@ -335,10 +334,6 @@ else
 end
 
 function h5type(parent::JldFile, T::TupleType, commit::Bool)
-    @assert isa(T, TupleType)
-    # !isa(T, (@compat Tuple{Vararg{Union((@compat Tuple), DataType)}})) && unknown_type_err(T)
-    # T = T::(@compat Tuple{Vararg{Union((@compat Tuple), DataType)}})
-
     haskey(parent.jlh5type, T) && return parent.jlh5type[T]
     # Tuples should always be concretely typed, unless we're
     # reconstructing a tuple, in which case commit will be false
@@ -375,6 +370,7 @@ function gen_jlconvert(typeinfo::JldTypeInfo, T::TupleType)
     args = ex.args
     tup = Expr(:tuple)
     tupargs = tup.args
+    types = tupletypes(T)
     for i = 1:length(typeinfo.dtypes)
         h5offset = typeinfo.offsets[i]
         field = symbol(string("field", i))
@@ -382,7 +378,7 @@ function gen_jlconvert(typeinfo::JldTypeInfo, T::TupleType)
         if HDF5.h5t_get_class(typeinfo.dtypes[i]) == HDF5.H5T_REFERENCE
             push!(args, :($field = read_ref(file, unsafe_load(convert(Ptr{HDF5ReferenceObj}, ptr)+$h5offset))))
         else
-            push!(args, :($field = jlconvert($(T[i]), file, ptr+$h5offset)))
+            push!(args, :($field = jlconvert($(types[i]), file, ptr+$h5offset)))
         end
         push!(tupargs, field)
     end
@@ -471,7 +467,20 @@ function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, T::ANY)
         h5offset = typeinfo.offsets[i]
         jloffset = jloffsets[i]
 
-        if HDF5.h5t_get_class(typeinfo.dtypes[i]) == HDF5.H5T_REFERENCE
+        if isa(T.types[i], TupleType) && VERSION >= v"0.4.0-dev+4319" && T.types[i].pointerfree
+            # We continue to store tuples as references for the sake of
+            # backwards compatibility, but on 0.4 they are now stored
+            # inline
+            push!(args, quote
+                ref = unsafe_load(convert(Ptr{HDF5ReferenceObj}, ptr)+$h5offset)
+                if ref == HDF5.HDF5ReferenceObj_NULL
+                    warn("""A pointerfree tuple field was undefined.
+                            This is not supported in Julia 0.4 and the corresponding tuple will be uninitialized.""")
+                else
+                    unsafe_store!(convert(Ptr{$(T.types[i])}, out)+$jloffset, read_ref(file, ref))
+                end
+            end)
+        elseif HDF5.h5t_get_class(typeinfo.dtypes[i]) == HDF5.H5T_REFERENCE
             obj = gensym("obj")
             push!(args, quote
                 ref = unsafe_load(convert(Ptr{HDF5ReferenceObj}, ptr)+$h5offset)
