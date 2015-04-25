@@ -763,6 +763,10 @@ _typedict["Core.Type{TypeVar(:T,Union(Core.Any,Core.Undef))}"] = Type
 fixtypes(typ) = typ
 @eval begin
     function fixtypes(typ::Expr)
+        for i = 1:length(typ.args)
+            typ.args[i] = fixtypes(typ.args[i])
+        end
+
         $(if VERSION >= v"0.4.0-dev+4319"
             quote
                 if typ.head == :tuple
@@ -776,10 +780,6 @@ fixtypes(typ) = typ
                 end
             end
         end)
-
-        for i = 1:length(typ.args)
-            typ.args[i] = fixtypes(typ.args[i])
-        end
         typ
     end
 end
