@@ -205,6 +205,12 @@ bitsparamint16  = BitsParams{@compat Int16(1)}()
 # Tuple of tuples
 tuple_of_tuples = (1, 2, (3, 4, [5, 6]), [7, 8])
 
+# SimpleVector
+if VERSION >= v"0.4.0-dev+4319"
+    simplevec = Base.svec(1, 2, Int64, "foo")
+    iseq(x::SimpleVector, y::SimpleVector) = collect(x) == collect(y)
+end
+
 iseq(x,y) = isequal(x,y)
 iseq(x::MyStruct, y::MyStruct) = (x.len == y.len && x.data == y.data)
 iseq(x::MyImmutable, y::MyImmutable) = (isequal(x.x, y.x) && isequal(x.y, y.y) && isequal(x.z, y.z))
@@ -387,6 +393,7 @@ for compress in (true,false)
     @write fid bitsparamint
     @write fid bitsparamuint
     @write fid tuple_of_tuples
+    VERSION >= v"0.4.0-dev+4319" && @write fid simplevec
 
     # Make sure we can create groups (i.e., use HDF5 features)
     g = g_create(fid, "mygroup")
@@ -515,6 +522,7 @@ for compress in (true,false)
         @check fidr bitsparamint
         @check fidr bitsparamuint
         @check fidr tuple_of_tuples
+        VERSION >= v"0.4.0-dev+4319" && @check fidr simplevec
         
         x1 = read(fidr, "group1/x")
         @assert x1 == Any[1]

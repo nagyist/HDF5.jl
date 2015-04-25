@@ -306,9 +306,10 @@ if VERSION >= v"0.4.0-dev+4319"
     end
 
     gen_h5convert(::JldFile, ::Type{SimpleVector}) = nothing
-    h5convert!(out::Ptr, ::JldFile, x::SimpleVector, ::JldWriteSession) =
-        unsafe_store!(convert(Ptr{HDF5.HDF5ReferenceObj}, out), write_ref(parent::JldFile, [x...], wsession::JldWriteSession))
+    h5convert!(out::Ptr, parent::JldFile, x::SimpleVector, wsession::JldWriteSession) =
+        unsafe_store!(convert(Ptr{HDF5.HDF5ReferenceObj}, out), write_ref(parent, [x...], wsession))
 
+    push!(BUILTIN_TYPES, SimpleVector)
     function jlconvert(::Type{SimpleVector}, file::JldFile, ptr::Ptr)
         Base.svec(read_ref(file, unsafe_load(convert(Ptr{HDF5.HDF5ReferenceObj}, ptr)))...)
     end
